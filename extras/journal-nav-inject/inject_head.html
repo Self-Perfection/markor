@@ -1,0 +1,227 @@
+<!-- =====================================================================
+     Zim Journal Navigation — inject for Markor View mode
+     =====================================================================
+     Установка: Настройки → View mode → Inject → head
+     Скопируйте весь этот файл целиком в поле настройки.
+
+     Настройка:
+       Измените JOURNAL_FOLDER ниже, если ваша папка журнала
+       называется иначе, чем "Journal".
+
+     Структура поддерживаемых путей:
+       …/Journal/YYYY/MM/DD.txt
+
+     Функции:
+       • Строка навигации ← предыдущий день | 📅 | следующий день →
+       • Сворачиваемый мини-календарь месяца
+       • Все дни месяца кликабельны (несуществующие откроются как новые)
+       • Адаптируется к светлой и тёмной теме Markor
+       • На файлах вне журнала ничего не показывает
+     ===================================================================== -->
+
+<style>
+#jnav {
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  background: {{ app.token_color_grey_inverse_of_theme }};
+  border-bottom: 1px solid rgba(128,128,128,0.35);
+  padding: 6px 12px;
+  font-family: sans-serif;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+.jnav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.jnav-a, .jnav-btn {
+  color: {{ app.token_link_color }};
+  text-decoration: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.jnav-a:hover, .jnav-btn:hover {
+  background: rgba(128,128,128,0.22);
+}
+#jcal {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(128,128,128,0.3);
+}
+.jcal-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-weight: bold;
+  color: {{ app.token_bw_inverse_of_theme }};
+}
+.jcal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+}
+.jcal-wday {
+  font-size: 11px;
+  color: {{ app.token_bw_inverse_of_theme }};
+  opacity: 0.5;
+  padding: 2px 0;
+}
+.jcal-day {
+  display: block;
+  font-size: 13px;
+  padding: 4px 2px;
+  border-radius: 4px;
+  text-decoration: none;
+  color: {{ app.token_link_color }};
+}
+.jcal-day:hover {
+  background: rgba(128,128,128,0.22);
+}
+.jcal-day.jcal-cur {
+  background: {{ app.token_accent_color }};
+  color: white;
+  font-weight: bold;
+}
+</style>
+
+<script type="text/javascript">
+// ── настройка ──────────────────────────────────────────────────────────
+var JOURNAL_FOLDER = 'Journal';
+// ──────────────────────────────────────────────────────────────────────
+
+function onPageLoaded() {
+  var fileUri = '{{ app.fileuri_viewed_file }}';
+
+  // Проверяем, что открытый файл — дневная запись журнала
+  var pat = new RegExp(
+    '^(.*/' + JOURNAL_FOLDER + '/)(\\d{4})/(\\d{2})/(\\d{2})\\.txt$'
+  );
+  var m = fileUri.match(pat);
+  if (!m) return; // не журнал — ничего не делаем
+
+  var basePath = m[1];          // "file:///…/Journal/"
+  var year  = +m[2];
+  var month = +m[3];
+  var day   = +m[4];
+
+  // ── вспомогательные ─────────────────────────────────────────────────
+  var MONTHS = [
+    'January','February','March','April','May','June',
+    'July','August','September','October','November','December'
+  ];
+  var SHORT = [
+    'Jan','Feb','Mar','Apr','May','Jun',
+    'Jul','Aug','Sep','Oct','Nov','Dec'
+  ];
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  // Строим URI для произвольного дня; Date сам обрабатывает переход
+  // через границу месяца/года (например, день 0 = последний день пред. месяца)
+  function buildUri(y, mo, d) {
+    var dt = new Date(y, mo - 1, d);
+    return basePath
+      + dt.getFullYear() + '/'
+      + pad2(dt.getMonth() + 1) + '/'
+      + pad2(dt.getDate()) + '.txt';
+  }
+
+  function shortDate(dt) {
+    return dt.getDate() + '\u00a0' + SHORT[dt.getMonth()];
+  }
+
+  // ── соседние дни ─────────────────────────────────────────────────────
+  var prevDt  = new Date(year, month - 1, day - 1);
+  var nextDt  = new Date(year, month - 1, day + 1);
+  var prevUri = buildUri(year, month, day - 1);
+  var nextUri = buildUri(year, month, day + 1);
+
+  // ── состояние календаря ──────────────────────────────────────────────
+  var calY    = year;
+  var calMo   = month;
+  var calOpen = false;
+
+  // ── создаём навигационный блок ───────────────────────────────────────
+  var nav = document.createElement('div');
+  nav.id = 'jnav';
+  nav.innerHTML =
+    '<div class="jnav-bar">' +
+      '<a class="jnav-a" href="' + prevUri + '">&#8592; ' + shortDate(prevDt) + '</a>' +
+      '<button class="jnav-btn" onclick="_jnav.toggle()">&#128197; ' +
+        MONTHS[month - 1] + '\u00a0' + year +
+      '</button>' +
+      '<a class="jnav-a" href="' + nextUri + '">' + shortDate(nextDt) + ' &#8594;</a>' +
+    '</div>' +
+    '<div id="jcal" style="display:none">' +
+      '<div class="jcal-hdr">' +
+        '<button class="jnav-btn" onclick="_jnav.prevMo()">&#8592;</button>' +
+        '<span id="jcal-title"></span>' +
+        '<button class="jnav-btn" onclick="_jnav.nextMo()">&#8594;</button>' +
+      '</div>' +
+      '<div class="jcal-grid">' +
+        ['Mo','Tu','We','Th','Fr','Sa','Su']
+          .map(function(d) { return '<span class="jcal-wday">' + d + '</span>'; })
+          .join('') +
+      '</div>' +
+      '<div class="jcal-grid" id="jcal-days"></div>' +
+    '</div>';
+
+  document.body.insertBefore(nav, document.body.firstChild);
+  // Небольшой отступ, чтобы sticky-бар не перекрывал начало контента
+  document.body.style.paddingTop = '4px';
+
+  // ── рендер сетки календаря ───────────────────────────────────────────
+  function renderCal() {
+    document.getElementById('jcal-title').textContent =
+      MONTHS[calMo - 1] + ' ' + calY;
+
+    // getDay(): 0=Вс, 1=Пн … нам нужен сдвиг от Понедельника
+    var firstWday = new Date(calY, calMo - 1, 1).getDay();
+    var offset    = (firstWday + 6) % 7;
+    var daysInMo  = new Date(calY, calMo, 0).getDate();
+
+    var html = '';
+    for (var i = 0; i < offset; i++) {
+      html += '<span></span>';
+    }
+    for (var d = 1; d <= daysInMo; d++) {
+      var isCur = (calY === year && calMo === month && d === day);
+      html +=
+        '<a href="' + buildUri(calY, calMo, d) + '"' +
+        ' class="jcal-day' + (isCur ? ' jcal-cur' : '') + '">' +
+        d + '</a>';
+    }
+    document.getElementById('jcal-days').innerHTML = html;
+  }
+
+  // ── глобальный объект для inline-обработчиков ────────────────────────
+  window._jnav = {
+    toggle: function() {
+      calOpen = !calOpen;
+      document.getElementById('jcal').style.display = calOpen ? 'block' : 'none';
+    },
+    prevMo: function() {
+      calMo--;
+      if (calMo < 1) { calMo = 12; calY--; }
+      renderCal();
+    },
+    nextMo: function() {
+      calMo++;
+      if (calMo > 12) { calMo = 1; calY++; }
+      renderCal();
+    }
+  };
+
+  renderCal();
+}
+</script>
