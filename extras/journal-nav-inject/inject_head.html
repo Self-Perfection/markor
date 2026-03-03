@@ -92,6 +92,13 @@
   color: white;
   font-weight: bold;
 }
+.jcal-day.jcal-today {
+  box-shadow: inset 0 0 0 1.5px {{ app.token_accent_color }};
+}
+.jcal-today-row {
+  text-align: right;
+  margin: 2px 0 6px;
+}
 </style>
 
 <script type="text/javascript">
@@ -146,6 +153,13 @@ function onPageLoaded() {
   var prevUri = buildUri(year, month, day - 1);
   var nextUri = buildUri(year, month, day + 1);
 
+  // ── сегодняшняя дата ─────────────────────────────────────────────────
+  var _today  = new Date();
+  var todayY  = _today.getFullYear();
+  var todayMo = _today.getMonth() + 1;
+  var todayD  = _today.getDate();
+  var todayUri = buildUri(todayY, todayMo, todayD);
+
   // ── состояние календаря ──────────────────────────────────────────────
   var calY    = year;
   var calMo   = month;
@@ -167,6 +181,9 @@ function onPageLoaded() {
         '<button class="jnav-btn" onclick="_jnav.prevMo()">&#8592;</button>' +
         '<span id="jcal-title"></span>' +
         '<button class="jnav-btn" onclick="_jnav.nextMo()">&#8594;</button>' +
+      '</div>' +
+      '<div class="jcal-today-row">' +
+        '<a class="jnav-a" href="' + todayUri + '">Today &#8594;</a>' +
       '</div>' +
       '<div class="jcal-grid">' +
         ['Mo','Tu','We','Th','Fr','Sa','Su']
@@ -195,10 +212,12 @@ function onPageLoaded() {
       html += '<span></span>';
     }
     for (var d = 1; d <= daysInMo; d++) {
-      var isCur = (calY === year && calMo === month && d === day);
+      var isCur   = (calY === year  && calMo === month  && d === day);
+      var isToday = (calY === todayY && calMo === todayMo && d === todayD);
+      var cls = 'jcal-day' + (isCur ? ' jcal-cur' : '') + (isToday && !isCur ? ' jcal-today' : '');
       html +=
         '<a href="' + buildUri(calY, calMo, d) + '"' +
-        ' class="jcal-day' + (isCur ? ' jcal-cur' : '') + '">' +
+        ' class="' + cls + '">' +
         d + '</a>';
     }
     document.getElementById('jcal-days').innerHTML = html;
